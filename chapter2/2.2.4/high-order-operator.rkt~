@@ -1,0 +1,20 @@
+#lang Racket
+
+(require "picture.rkt")
+
+(require (planet "sicp.ss" ("soegaard" "sicp.plt" 2 1)))
+
+
+(define (square-of-four tl tr bl br)
+  (lambda (painter)
+    (let ((top (beside (tl painter) (tr painter)))
+          (bottom (beside (bl painter) (br painter))))
+      (below bottom top))))
+
+
+(define (fliped-pairs painter)
+  (let ((combine4 (square-of-four identity flip-vert
+                                  identity flip-horiz)))
+    (combine4 painter)))
+
+(paint (fliped-pairs einstein))

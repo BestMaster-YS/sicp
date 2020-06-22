@@ -1,0 +1,15 @@
+(define (interative-improve good-enough? improve)
+  (define (improve-iter x)
+    (if (good-enough? x)
+        x
+        (improve-iter (improve x)))
+  )
+  (lambda (x) (improve-iter x))
+)
+
+(define (interative-improve good-enough? improve)
+  (lambda (x)
+          (if (good-enough? x)
+              x)
+              ((interative-improve good-enough? improve) (improve x)))
+)

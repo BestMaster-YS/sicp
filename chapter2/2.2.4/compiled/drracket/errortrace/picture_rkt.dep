@@ -1,0 +1,1 @@
+("7.7" racket ("d5593ff8afdc72ef0bdf6a4a130bf160ec599cd4" . "9419c9d671e0840afebe5433a0a652be6bfa7b8c") #"/Users/liubin/Library/Racket/planet/300/7.7/cache/soegaard/sicp.plt/2/1/sicp.rkt" (collects #"Racket" #"main.rkt") (collects #"errortrace" #"errortrace-key.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))

@@ -1,0 +1,15 @@
+(load "util.scm")
+
+(define (check-carmichael n)
+	(define (iter m)
+		(cond ((= m n) #t)
+        	((= (expmod m n n) m) (iter (+ m 1)))
+        	(else #f))
+  )
+  (iter 2)
+)
+
+(check-carmichael 561)
+(check-carmichael 1105)
+(check-carmichael 1729)
+(check-carmichael 2465)
