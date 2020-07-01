@@ -1,0 +1,20 @@
+(define random-init 42)
+
+(define (rand action)
+  (let ((x random-init))
+    (cond ((eq? action 'generate )
+           (lambda ()
+             (set! x (rand-update x))
+             x))
+          ((eq? action 'reset )
+           (lambda (init)
+             (set! x init)
+             x))
+          (else
+            (error "Unknown rand action -- " action)))))
+
+(define (rand-update x)
+  (define a 13)
+  (define b 17)
+  (define m 19)
+  (remainder (+ (* a x) b) m))

@@ -4,9 +4,10 @@
 (define (div x y) (apply-generic 'div x y))
 
 
+;; 整数包
 (define (install-scheme-number-package)
   (define (tag x)
-    (attach-tag 'scheme-number x))
+    (attach-tag 'scheme-number (floor x)))
   (put 'add '(scheme-number scheme-number)
        (lambda (x y) (tag (+ x y))))
   (put 'sub '(scheme-number scheme-number)
@@ -73,6 +74,24 @@
 (define (make-rational n d)
   ((get 'make 'rational) n d))
 
+;; 构建实数运算包
+(define (install-scheme-number-package)
+  (define (tag x)
+    (attach-tag 'real x))
+  (put 'add '(scheme-number scheme-number)
+       (lambda (x y) (tag (+ x y))))
+  (put 'sub '(scheme-number scheme-number)
+       (lambda (x y) (tag (- x y))))
+  (put 'mul '(scheme-number scheme-number)
+       (lambda (x y) (tag (* x y))))
+  (put 'div '(scheme-number scheme-number)
+       (lambda (x y) (tag (/ x y))))
+  (put 'make 'real
+       (lambda (x) (tag x)))
+  )
+
+(define (make-real n)
+  ((get 'make 'real) n))
 
 ;; 复数运算包
 

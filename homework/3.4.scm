@@ -1,0 +1,35 @@
+;; 设置密码
+(define (make-account balance password)
+  (let ((err-pwd-count 0))
+    (define (withdraw amount)
+      (if (> balance amount)
+          (begin (set! balance (- balance amount))
+                balance)
+          "Insufficient funds"))
+    (define (deposit amount)
+      (begin (set! balance (+ balance amount))
+            balance))     
+    (define (dispatch action pwd)
+      (if (eq? pwd password)
+          (begin (set! err-pwd-count 0)
+                (cond ((eq? action 'withdraw ) withdraw)
+                      ((eq? action 'deposit ) deposit)
+                      (else
+                        (error "Unknown action --- MAKE-ACCOUNT" action))))
+          (begin (set! err-pwd-count (+ 1 err-pwd-count))
+                 (if (= err-pwd-count 7)
+                     (error "password incorrect beyound 7th, call the Cops")
+                     (error "Incorrect password")))))
+    dispatch))
+
+(define lb (make-account 10000000 '123456 ))
+
+
+((lb 'withdraw '45678 ) 1000)
+((lb 'withdraw '45678 ) 1000)
+((lb 'withdraw '45678 ) 1000)
+((lb 'withdraw '45678 ) 1000)
+((lb 'withdraw '45678 ) 1000)
+((lb 'withdraw '45678 ) 1000)
+((lb 'withdraw '45678 ) 1000)
+

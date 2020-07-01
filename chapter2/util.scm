@@ -32,3 +32,5 @@
 (define (prime? n)
 	(= (smallest-divisor n) n)
 )
+
+(* (- (sqrt 8) (truncate (sqrt 8))) 1.0)

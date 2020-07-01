@@ -19,6 +19,31 @@
 
 (define (apply-generic op . args)
   (let ((type-tags (map type-tag args)))
-    (let ((pro (get op type-tags))))))
+    (let ((proc (get op type-tags)))
+      (if proc
+          (apply proc (map contents args))
+          ;; 不同类型组合
+          (if (= (length args) 2)
+              (let ((type1 (car type-tags))
+                    (type2 (cadr type-tags))
+                    (a1 (car args))
+                    (a2 (cadr args)))
+                (let ((t1->t2 (get-coercion type1 type2))
+                      (t2->t1 (get-coercion type2 type1)))
+                  (cond ((t1->t2
+                          (apply-generic op (t1->t2 a1) a2))
+                         (t2->t1
+                          (apply-generic op (t2->t1 a2) a1))
+                         (else
+                          (error "No method for these types"
+                                 (list op type-tags)))))))
+              (error "No method for these types"
+                     (list op type-tags)))))))
+
+;; 类型的层次结构
+
+
+;; 层次结构的不足
+
 
 
