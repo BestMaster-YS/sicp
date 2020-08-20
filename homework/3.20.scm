@@ -1,33 +1,3 @@
-(define x '((a b) c d))
-
-(define y '(e f))
-
-(set-car! x y)
-
-(display x)
-
-; (define (cons x y)
-;   (let ((new (get-new-pair)))
-;     (set-car! new x)
-;     (set-cdr! new y)
-;     new))
-
-
-;; Sharing and identity
-
-
-(define x (list 'a 'b))
-(define z1 (cons x x))
-
-(define z2 (cons (list 'a 'b) (list 'a 'b )))
-
-(define (set-to-wow! x) (set-car! (car x) 'wow ) x)
-
-(set-to-wow! z1)
-(set-to-wow! z2)
-
-;; mutation is just assignment
-
 (define (cons x y)
   (define (set-x! v) (set! x v))
   (define (set-y! v) (set! y v))
@@ -47,8 +17,10 @@
 (define (set-cdr! m new-value)
   ((m 'set-cdr! ) new-value) m)
 
+(define x (cons 1 2))
+(define z (cons x x))
+(set-car! (car z) 17)
+(car x)
 
-(define a (cons 1 2))
 
-(car a)
-(set-car! a 2)
+; http://community.schemewiki.org/?sicp-ex-3.20

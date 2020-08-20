@@ -1,0 +1,55 @@
+(load "util.scm")
+(load "meval.scm")
+;; (a)
+(define (lookup-variable-value var env)
+  (define (env-loop env)
+    (define (scan vars vals)
+      (cond ((null? vars)
+             (env-loop (enclosing-environment env)))
+            ((eq? var (car vars))
+             (if (eq? (car vals) *unassigned*)
+                 (error "This value is unassigned -- LOOKUP-VARIABLE-VALUE")
+                 (car vals)))
+            (else (scan (cdr vars) (cdr vals)))))
+    (if (eq? env the-empty-environment)
+        (error "Unbound variable" var)
+        (let ((frame (first-frame env)))
+          (scan (frame-variables frame)
+                (frame-values frame)))))
+  (env-loop env))
+
+;; (b) procedure-body :: list
+
+(define (make-let bindings body)
+  (cons 'let (cons bindings body)))
+
+(define (make-assignment var exp)
+  (list 'set! var exp))
+
+(define (scan-out-defines body)
+  (define (collect seq defs exps)
+    (if (null? seq)
+        (cons defs exps)
+        (if (definition? (car seq))
+            (collect (cdr seq) (cons (car seq) defs) exps)
+            (collect (cdr seq) defs (cons (car seq) exps)))))
+  (let ((pair (collect body '() '())))
+    (let ((defs (car pair))
+          (exps (cdr pair)))
+      (make-let (map (lambda (def)
+                       (list (definition-variable def)
+                             '*unassigned*))
+                     defs)
+                (append (map (lambda (def)
+                               (make-assignment (definition-variable def)
+                                                (definition-value def)))
+                             defs)
+                        exps)))))
+
+;; (c)
+
+(define (make-procedure parameters body env)
+  (list 'procedure parameters (scan-out-defines body) env))
+
+
+

@@ -929,6 +929,84 @@
 (define (make-from-mag-ang r a)
   (make-from-mag-ang-polar r a))
 
+
+;; one-dimensional tables
+(define (lookup key table)
+  (let ((record (assoc key (cdr tabel))))
+    (if record
+        (cdr record)
+        false)))
+
+(define (assoc key records)
+  (cond ((null? records) false)
+        ((equal? (caar records) key) (car records))
+        (else
+         (assoc key (cdr records)))))
+
+
+(define (insert! key value table)
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (set-cdr! record value)
+        (set-cdr! table
+                  (cons (cons key value)
+                        (cdr table))))
+    'ok))
+
+(define (make-table) (list '*table*))
+
+;; two-dimensional tables
+
+(define (lookup2d! key1 key2 table)
+  (let ((subtable (assoc key1 (cdr table))))
+    (if subtable
+        (let ((record (assoc key2 (cdr subtable))))
+          (if record
+              (cdr record)
+              false))
+        false)))
+
+(define (insert2d! key1 key2 value table)
+  (let ((subtable (assoc key1 (cdr table))))
+    (if subtable
+        (insert! key2 value subtable)
+        (set-cdr! table
+                  (cons (list key1 (cons key2 value))
+                        (cdr table))))
+    'ok))
+
+;; creating local state
+
+(define (make-table-local)
+  (let ((local-table (list '*local-table*)))
+    (define (lookup key1 key2)
+      (let ((subtable (assoc key1 (cdr local-table))))
+        (if subtable
+            (let ((record (assoc key2 (cdr subtable))))
+              (if record
+                  (cdr record)
+                  #f))
+            #f)))
+
+    (define (insert key1 key2 value)
+      (let ((subtable (assoc key1 (cdr local-table))))
+        (if subtable
+            (insert! key2 value subtable)
+            (set-cdr! local-table
+                      (cons (list key1 (cons key2 value))
+                            (cdr local-table))))
+        'ok))
+    (define (dispatch op)
+      (cond ((eq? op 'lookup) lookup)
+            ((eq? op 'insert) insert)
+            (else
+             (error "Unknown operation: TABLE" op))))
+    dispatch))
+
+(define generation-table (make-table-local))
+(define put (generation-table 'insert))
+(define get (generation-table 'lookup))
+
 ; ;; 可加性
 ; (define install-rectangular-package
 ;   (define (real-part z) (car z))
@@ -1149,5 +1227,881 @@
            (iterator (- trials-remaining 1)
                      trials-passed))))
   (iterator trials 0))
+
+
+(define (front-ptr q) (car q))
+(define (rear-ptr q) (cdr q))
+(define (set-front-ptr! q item)
+  (set-car! q item))
+(define (set-rear-ptr! q item)
+  (set-cdr! q item))
+
+(define (empty-queue? q)
+  (null? (front-ptr q)))
+
+(define (make-queue) (cons '() '()))
+
+(define (front-queue q)
+  (if (empty-queue? q)
+      (error "FRONT calls with empty queue" q)
+      (car (front-ptr q))))
+
+(define (insert-queue! queue item)
+  (let ((new-pair (cons item '())))
+    (if (empty-queue? queue)
+        (begin (set-front-ptr! queue new-pair)
+               (set-rear-ptr! queue new-pair)
+               queue)
+        (begin (set-cdr! (rear-ptr queue) new-pair)
+               (set-rear-ptr! queue new-pair)
+               queue))))
+
+(define (delete-queue! q)
+  (if (empty-queue? q)
+      (error "DELETE-QUEUE calls with empty queue" q)
+      (begin (set-front-ptr! q (cdr (front-ptr q)))
+             q)))
+
+(define (print-queue queue)
+  (if (empty-queue? queue)
+      '()
+      (front-ptr queue)))
+
+(define (assoc key records)
+  (cond ((null? records) false)
+        ((equal? (caar records) key) (car records))
+        (else
+         (assoc key (cdr records)))))
+
+;; one-dimensional tables
+(define (lookup key table)
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (cdr record)
+        false)))
+
+(define (insert! key value table)
+  (let ((record (assoc key (cdr table))))
+    (if record
+        (set-cdr! record value)
+        (set-cdr! table
+                  (cons (cons key value)
+                        (cdr table))))
+    'ok))
+
+(define (make-table) (list '*table*))
+
+;; two-dimensional tables
+
+(define (lookup2d! key1 key2 table)
+  (let ((subtable (assoc key1 (cdr table))))
+    (if subtable
+        (let ((record (assoc key2 (cdr subtable))))
+          (if record
+              (cdr record)
+              false))
+        false)))
+
+(define (insert2d! key1 key2 value table)
+  (let ((subtable (assoc key1 (cdr table))))
+    (if subtable
+        (insert! key2 value subtable)
+        (set-cdr! table
+                  (cons (list key1 (cons key2 value))
+                        (cdr table))))
+    'ok))
+
+
+
+(define (make-general-table)
+  (let ((table (list '*general-table*)))
+    ;
+    (define (lookup-general table keys)
+      (cond ((null? keys) (error "LOOKUP don't have keys"))
+            ((= (length keys) 1)
+             (let ((record (assoc (car keys) (cdr table))))
+               (if record
+                   (cdr record)
+                   false)))
+            (else
+             (let ((subtable (assoc (car keys) (cdr table))))
+               (if subtable
+                   (lookup-general subtable (cdr keys))
+                   #f)))))
+    (define (insert-general table value keys)
+      (cond ((= (length keys) 0)
+             (error "INSER don't calls with keys"))
+            ((= (length keys) 1)
+             (let ((record (assoc (car keys) (cdr table))))
+               (if record
+                   (set-cdr! record value)
+                   (set-cdr! table
+                             (cons (cons (car keys) value)
+                                   (cdr table))))
+               table))
+            (else
+             ;; need verify that subtable is exist
+             (let ((subtable (assoc (car keys) (cdr table))))
+               (if subtable
+                   ;; subtable exist -> recursive
+                   (insert-general subtable value (cdr keys))
+                   ;; subtable don't exist -> create table -> recursive
+                   (begin
+                     ;; create new-subtable and insert next-table into new-subtable finally insert new-subtable into table
+                     (set-cdr! table
+                               (cons (insert-general (list (car keys)) value (cdr keys)) (cdr table)))
+                     table))))))
+    (define (dispatch op)
+      (cond ((eq? op 'lookup) (lambda (keys) (lookup-general table keys)))
+            ((eq? op 'insert) (lambda (value keys) (insert-general table value keys)))
+            (else
+             (error "Unknown op -- MAKE_GENERAL_TABLE" op))))
+    dispatch))
+
+(define operate-table (make-general-table))
+(define (put value . keys) ((operate-table 'insert) value keys))
+(define (get . keys) ((operate-table 'lookup) keys))
+
+
+;; simulator digital circuit
+
+
+(define (half-adder a b s c)
+  (let ((d (make-wire))
+        (e (make-wire)))
+    (or-gate a b d)
+    (and-gate a b c)
+    (inverter c e)
+    (and-gate d e)
+    'ok))
+
+(define (full-adder a b in sum out)
+  (let ((s (make-wire))
+        (c2 (make-wire))
+        (c1 (make-wire)))
+    (half-adder b in s c1)
+    (half-adder a s sum c2)
+    (or-gate c2 c1 out)
+    'ok))
+
+;; primitive function boxes
+
+(define (inverter input output)
+  (define (invert-input)
+    (let ((new-value (logical-not (get-signal! input))))
+      (after-delay inverter-delay
+                   (lambda () (set-signal! output new-value)))))
+  (add-action! input invert-input) 'ok)
+
+
+(define (and-gate in1 in2 out)
+  (define (and-action-procudure)
+    (let ((new-value (logical-and (get-signal! in1) (get-signal! in2))))
+      (after-delay
+       and-gate-delay
+       (lambda () (set-signal! out new-value)))))
+  (add-action! in1 and-action-procudure)
+  (add-action! in2 and-action-procudure)
+  'ok)
+
+(define (or-gate in1 in2 out)
+  (define (or-gate-procudure)
+    (let ((new-value (logical-or (get-signal! in1) (get-signal! in2))))
+      (after-delay
+       or-gate-delay
+       (lambda () (set-signal! out new-value)))))
+  (add-action! in1 or-gate-procudure)
+  (add-action! in2 or-gate-procudure)
+  'ok)
+
+(define (logical-or in1 in2)
+  (cond ((and (= in1 0) (= in2 0)) 0)
+        ((or (not (or (= in1 1) (= in1 0)))
+             (not (or (= in2 1) (= in2 0)))))
+        (else
+         1)))
+
+(define (logical-not in)
+  (cond ((= in 0) 1)
+        ((= in 1) 0)
+        (else
+         (error "Invalid signal" in))))
+
+(define (logical-and in1 in2)
+  (cond ((and (= in1 1) (and in2 1)) 1)
+        ((or (not (or (= in1 1) (= in1 0)))
+             (not (or (= in2 1) (= in2 0))))
+         (error "Invalid sigal" in1 in2))
+        (else
+         0)))
+
+
+;; ripper-carry adder
+(define (ripper-carry-adder listA listB listS C)
+  (define (inner-adder a b c-in s)
+    (if (= (length listA) 1)
+        (full-adder (car a) (car b) c-in (car s) C)
+        (let ((c-out (make-wire)))
+          (full-adder (car a) (car b) c-in (car s) c-out)
+          (inner-adder (cdr a) (cdr b) c-out (cdr s)))))
+  (let ((c-in (make-wire)))
+    (set-signal! c-in 0)
+    (inner-adder listA listB c-in listS)))
+
+
+;;Implementing The agenda
+
+(define (make-time-segment time queue) (cons time queue))
+(define (segment-time segment) (car segment))
+(define (segment-queue segment) (cdr segment))
+
+(define (make-agenda) (list 0))
+(define (current-time agenda) (car agenda))
+(define (set-current-time! agenda time)
+  (set-car! agenda time))
+(define (segments agenda) (cdr agenda))
+(define (set-segments! agenda segments)
+  (set-cdr! agenda segments))
+(define (first-segment agenda) (car (segments agenda)))
+(define (rest-segments agenda) (cdr (segments agenda)))
+
+(define (empty-agenda? agenda) (null? (segments agenda)))
+
+
+(define (add-to-agenda! time action agenda)
+  (define (belongs-before? segments)
+    (or (null? segments)
+        (< time (segment-time (car segments)))))
+  (define (make-new-time-segment time action)
+    (let ((q (make-queue)))
+      (insert-queue! q action)
+      (make-time-segment time q)))
+  (define (add-to-segments! segments)
+    (if (= (segment-time (car segments)) time)
+        (insert-queue! (segment-queue (car segments))
+                       action)
+        (let ((rest (cdr segments)))
+          (if (belongs-before? rest)
+              (set-cdr!
+               segments
+               (cons (make-new-time-segment time action)
+                     (cdr segments)))
+              (add-to-segments! rest)))))
+  (let ((segments (segments agenda)))
+    (if (belongs-before? segments)
+        (set-segments!
+         agenda
+         (cons (make-new-time-segment time action)
+               segments))
+        (add-to-segments! segments))))
+
+(define (remove-first-agenda-item! agenda)
+  (let ((q (segment-queue (first-segment agenda))))
+    (delete-queue! q)
+    (if (empty-queue? q)
+        (set-segments! agenda (rest-segments agenda)))))
+
+
+(define (first-agenda-item agenda)
+  (if (empty-agenda? agenda)
+      (error "Agenda is empty: FIRST-AGENDA-ITEM")
+      (let ((first-seg (first-segment agenda)))
+        (set-current-time! agenda
+                           (segment-time first-seg))
+        (front-queue (segment-queue first-seg)))))
+
+
+
+;; Representing wire
+
+(define (make-wire)
+  (let ((signal-value 0)
+        (action-precedure '()))
+    (define (set-signal! new-value)
+      (if (not (= new-value signal-value))
+          (begin (set! signal-value new-value)
+                 (call-each action-precedure))
+          'done))
+    (define (accept-action-procedure! proc)
+      (set! action-precedure
+            (cons proc action-precedure))
+      (proc))
+    (define (dispatch op)
+      (cond ((eq? op 'get-signal!) signal-value)
+            ((eq? op 'set-signal!) set-signal!)
+            ((eq? op 'add-action!) accept-action-procedure!)
+            (else
+             (error "Unknown operation: WIRE" op))))
+    dispatch))
+
+(define (set-signal! wire new-value) ((wire 'set-signal!) new-value))
+(define (get-signal! wire) (wire 'get-signal!))
+(define (add-action! wire action-precedure)
+  ((wire 'add-action!) action-precedure))
+
+;; A simple simulation
+
+(define (probe name wire)
+  (add-action! wire
+               (lambda ()
+                 (newline)
+                 (display name) (display " ")
+                 (display (current-time the-agenda))
+                 (display " New-value ")
+                 (display (get-signal! wire)))))
+
+
+(define the-agenda (make-agenda))
+(define inverter-delay 2)
+(define or-gate-delay 3)
+(define and-gate-delay 5)
+
+(define (call-each procedures)
+  (if (null? procedures)
+      'done
+      (begin ((car procedures))
+             (call-each (cdr procedures)))))
+
+(define (after-delay delay action)
+  (add-to-agenda! (+ delay (current-time the-agenda))
+                  action
+                  the-agenda))
+
+
+(define (propagate)
+  (if (empty-agenda? the-agenda)
+      'done
+      (let ((first-item (first-agenda-item the-agenda)))
+        (first-item)
+        (remove-first-agenda-item! the-agenda)
+        (propagate))))
+
+;; propagation constraint
+;; implementing the constraint system
+;; constraint
+(define (adder a1 a2 sum)
+  (define (process-new-value)
+    (cond ((and (has-value? a1) (has-value? a2))
+           (set-value! sum
+                       (+ (get-value! a1) (get-value! a2))
+                       me))
+          ((and (has-value? a1) (has-value? sum))
+           (set-value! a2
+                       (- (get-value! sum) (get-value! a1))
+                       me))
+          ((and (has-value? a2) (has-value? sum))
+           (set-value! a1
+                       (- (get-value! sum) (get-value! a2))
+                       me))))
+  (define (process-forget-value)
+    (forget-value! sum me)
+    (forget-value! a1 me)
+    (forget-value! a2 me)
+    (process-new-value))
+  (define (me request)
+    (cond ((eq? request 'I-have-a-value) (process-new-value))
+          ((eq? request 'I-lost-my-value) (process-forget-value))
+          (else
+           (error "Unknown Request: Adder" request))))
+  (connect a1 me)
+  (connect a2 me)
+  (connect sum me)
+  me)
+
+(define (inform-about-value constraint)
+  (constraint 'I-have-a-value))
+
+
+(define (inform-about-no-value constraint)
+  (constraint 'I-lost-my-value))
+
+
+(define (multiplier m1 m2 product)
+  (define (process-new-value)
+    (cond ((or (and (has-value? m1) (= (get-value! m1) 0))
+               (and (has-value? m2) (= (get-value! m2) 0)))
+           (set-value! product 0 me))
+          ((and (has-value? m1) (has-value? m2))
+           (set-value! product
+                       (* (get-value! m1) (get-value! m2))
+                       me))
+          ((and (has-value? product) (has-value? m1))
+           (set-value! m2
+                       (/ (get-value! product) (get-value! m1))
+                       me))
+          ((and (has-value? product) (has-value? m2))
+           (set-value! m1
+                       (/ (get-value! product) (get-value! m2))
+                       me))))
+  (define (process-forget-value)
+    (forget-value! product me)
+    (forget-value! m1 me)
+    (forget-value! m2 me)
+    (process-new-value))
+  (define (me request)
+    (cond ((eq? request 'I-have-a-value) (process-new-value))
+          ((eq? request 'I-lost-my-value) (process-forget-value))
+          (else
+           (error "Unknown Request: Multiplier" request))))
+  (connect m1 me)
+  (connect m2 me)
+  (connect product me)
+  me)
+
+(define (constant value connector)
+  (define (me request)
+    (error "Unknown Request: CONSTANT" request))
+  (connect connector me)
+  (set-value! connector value me)
+  me)
+
+(define (probe name connector)
+  (define (print-probe value)
+    (newline) (display "Probo: ") (display name)
+    (display " = ") (display value))
+  (define (process-new-value)
+    (print-probe (get-value! connector)))
+  (define (process-forget-value)
+    (print-probe "?"))
+  (define (me request)
+    (cond ((eq? request 'I-have-a-value) (process-new-value))
+          ((eq? request 'I-lost-my-value) (process-forget-value))
+          (else
+           (error "Unknown Request: Probe" request))))
+  (connect connector me)
+  me)
+
+
+;;
+
+(define (make-connector)
+  (let ((value false)
+        (informant false)
+        (constraints '()))
+    (define (set-my-value newval setter)
+      (cond ((not (has-value? me))
+             (set! value newval)
+             (set! informant setter)
+             (for-each-expect setter
+                              inform-about-value
+                              constraints))
+            ((not (= value newval))
+             (error "Contradication" (list value newval)))
+            (else
+             'ignored)))
+    (define (forget-my-value retractor)
+      (if (eq? retractor informant)
+          (begin (set! informant false)
+                 (for-each-expect retractor
+                                  inform-about-no-value
+                                  constraints))
+          'ignored))
+    (define (connect new-constraint)
+      (if (not (memq new-constraint constraints))
+          (set! constraints
+                (cons new-constraint constraints)))
+      (if (has-value? me)
+          (inform-about-value new-constraint))
+      'done)
+    (define (me request)
+      (cond ((eq? request 'has-value?)
+             (if informant true false))
+            ((eq? request 'get-value!) value)
+            ((eq? request 'set-value!) set-my-value)
+            ((eq? request 'forget-value!) forget-my-value)
+            ((eq? request 'connect) connect)
+            (else
+             (error "Unknown operation: CONNECTOR" request))))
+    me))
+
+
+
+(define (for-each-expect exception procedure list)
+  (define (loop items)
+    (cond ((null? items) 'done)
+          ((eq? (car items) exception) (loop (cdr items)))
+          (else
+           (procedure (car items))
+           (loop (cdr items)))))
+  (loop list))
+
+(define (has-value? connector)
+  (connector 'has-value?))
+
+(define (get-value! connector)
+  (connector 'get-value!))
+
+(define (set-value! connector new-value informant)
+  ((connector 'set-value!) new-value informant))
+
+(define (forget-value! connector retractor)
+  ((connector 'forget-value!) retractor))
+
+(define (connect connector new-constraint)
+  ((connector 'connect) new-constraint))
+
+(define (make-account balance)
+  (define (withdraw amount)
+    (if (>= balance amount)
+        (begin (set! balance (- balance amount)) balance)
+        "Insufficient funds"))
+  (define (deposit amount)
+    (set! balance (+ balance amount))
+    balance)
+  (let ((serializer (make-serializer)))
+    (define (dispatch m)
+      (cond ((eq? m 'withdraw) withdraw)
+            ((eq? m 'deposit) deposit)
+            ((eq? m 'balance) balance)
+            ((eq? m 'serializer) serializer)
+            (else (error "Unknown request: MAKE-ACCOUNT"
+                         m))))
+    dispatch))
+
+(define (exchange account1 account2)
+  (let ((difference (- (account1 'balance)
+                       (account2 'balance))))
+    ((account1 'withdraw) difference)
+    ((account2 'deposit) difference)))
+
+(define (serializer-exchange account1 account2)
+  (let ((serializer1 (account1 'serializer))
+        (serializer2 (account2 'serializer)))
+    ((serializer1 (serializer2 exchange))
+     account1
+     account2)))
+
+(define (make-serializer)
+  (let ((mutex (make-mutex)))
+    (lambda (p)
+      (define (serializer-p . args)
+        (mutex 'acquire)
+        (let ((val (apply p args)))
+          (mutex 'release)
+          val))
+      serializer-p)))
+
+(define (make-mutex)
+  (let ((cell (list false)))
+    (define (the-mutex m)
+      (cond ((eq? m 'acquire)
+             (if (test-and-set! cell)
+                 ;; 无限排队
+                 (the-mutex 'acquire)))
+            ((eq? m 'release)
+             (clear! cell))))))
+
+(define (clear! cell)
+  (set-car! cell false))
+
+
+(define (test-and-set! cell)
+  (if (car cell)
+      true
+      (begin (set-car! cell true)
+             false)))
+;; test-and-set! 必须是原子性的操作，当一个进程访问互斥元时，发现为 false，那就必须在其他进程访问之前，设置为 true
+
+
+;; streams
+
+
+;; delay 和 force 的实现
+
+(define (memo-proc proc)
+  (let ((already-run? false)
+        (result false))
+    (lambda ()
+      (if (not already-run?)
+          (begin (set! result (proc))
+                 (set! already-run? #t)
+                 result)
+          result))))
+
+(define (force delayed-object)
+  (delayed-object))
+
+;(define (delay exp)
+;  (memo-proc (lambda () exp)))
+
+;(define (cons-stream s1 s2) (cons s1 (delay s2)))
+
+(define-syntax delay
+  (syntax-rules ()
+    ((_ exp) (memo-proc (lambda () exp)))))
+
+(define-syntax cons-stream
+  (syntax-rules ()
+    ((_ a b) (cons a (delay b)))))
+
+(define (stream-car s) (car s))
+
+(define (stream-cdr s) (force (cdr s)))
+
+(define (stpream-null? s) (null? s))
+
+(define (stream-ref s n)
+  (if (= n 0)
+      (stream-car s)
+      (stream-ref (stream-cdr s) (- n 1))))
+
+(define (stream-map proc s)
+  (if (stream-null? s)
+      the-empty-stream
+      (cons-stream (proc (stream-car s))
+                   (stream-map proc (stream-cdr s)))))
+
+(define (stream-map proc . argstreams)
+  (if (stream-null? (car argstreams))
+      the-empty-stream
+      (cons-stream
+       (apply proc (map stream-car argstreams))
+       (apply stream-map
+              (cons proc (map stream-cdr argstreams))))))
+
+(define (stream-for-each proc s)
+  (if (stream-null? s)
+      done'
+      (begin
+        (proc (stream-car s))
+        (stream-for-each proc (stream-cdr s)))))
+
+(define (display-line v)
+  (newline)
+  (display v))
+
+(define (display-stream s)
+  (stream-for-each display-line s))
+
+;; 流实现的行为方式
+(define (stream-enumerate-interval low high)
+  (if (> low high)
+      the-empty-stream
+      (cons-stream
+       low
+       (stream-enumerate-interval
+        (+ low 1)
+        high))))
+
+(define (stream-filter pred stream)
+  (cond ((stream-null? stream) the-empty-stream)
+        ((pred (stream-car stream))
+         (cons-stream (stream-car stream)
+                      (stream-filter pred
+                                     (stream-cdr stream))))
+        (else
+         (stream-filter pred (stream-cdr stream)))))
+
+;; 无穷流
+(define (integers-starting-from n)
+  (cons-stream n (integers-starting-from (+ n 1))))
+
+
+(define integers (integers-starting-from 1))
+
+(define (divisible? x y)
+  (= (remainder x y) 0))
+
+(define no-sevens
+  (stream-filter (lambda (x) (not (divisible? x 7)))
+                 integers))
+
+(define (fibgen a b)
+  (cons-stream a (fibgen b (+ a b))))
+
+(define fibs (fibgen 0 1))
+
+;;厄拉多塞筛法
+(define (sieve stream)
+  (cons-stream
+   (stream-car stream)
+   (sieve (stream-filter
+           (lambda (x)
+             (not (divisible? x (stream-car stream))))
+           (stream-cdr stream)))))
+(define primes (sieve (integers-starting-from 2)))
+
+;; 隐式的定义流
+
+(define ones (cons-stream 1 ones))
+
+(define (add-streams s1 s2)
+  (stream-map + s1 s2))
+
+(define integers (cons-stream 1 (add-streams ones integers)))
+
+(define fibs
+  (cons-stream 0
+               (cons-stream 1
+                            (add-streams (stream-cdr fibs)
+                                         fibs))))
+(define (scale-stream stream factor)
+  (stream-map (lambda (x) (* x factor)) stream))
+
+(define (prime? n)
+  (define (iter ps)
+    (cond ((> (square (stream-car ps)) n) true)
+          ((divisible? n (stream-car ps)) false)
+          (else (iter (stream-cdr ps)))))
+  (iter primes))
+
+(define primes
+  (cons-stream
+   2
+   (stream-filter prime? (integers-starting-from 3))))
+
+
+(define (take n stream)
+  (define (iter i)
+    (if (= i (- n 1))
+        (stream-ref stream (- n 1))
+        (cons (stream-ref stream i) (iter (+ i 1)))))
+  (iter 0))
+
+(define (takeWhile condition stream)
+  (let ((v (stream-car stream)))
+    (if (condition v)
+        (stream-car stream)
+        (cons v (takeWhile condition (stream-cdr stream))))))
+
+(define (partial-sum s)
+  (cons-stream (stream-car s) (add-streams (stream-cdr s) (partial-sum s))))
+
+;; 系统地将迭代操作转化为流操作
+
+(define (sqrt-improve guess x)
+  (average guess (/ x guess)))
+
+(define (sqrt-stream x)
+  (define guesses
+    (cons-stream 1.0
+                 (stream-map (lambda (guess)
+                               (sqrt-improve guess x))
+                             guesses)))
+  guesses)
+
+(define (pi-summands n)
+  (cons-stream (/ 1.0 n)
+               (stream-map - (pi-summands (+ n 2)))))
+
+(define pi-stream
+  (scale-stream (partial-sum (pi-summands 1)) 4))
+
+(define (euler-transform s)
+  (let ((s0 (stream-ref s 0))
+        (s1 (stream-ref s 1))
+        (s2 (stream-ref s 2)))
+    (cons-stream (- s2 (/ (square (- s2 s1))
+                          (+ s0 (* -2 s1) s2)))
+                 (euler-transform (stream-cdr s)))))
+
+;; 递归的加速
+;; 得到以流为单位的流
+(define (make-tableua transform s)
+  (cons-stream s
+               (make-tableua transform
+                             (transform s))))
+
+;; 取流中单位的第一项
+(define (accelerated-squence transform s)
+  (stream-map stream-car (make-tableua transform s)))
+
+(define (reverse-list l)
+  (define (iter listItem res)
+    (if (null? listItem)
+        res
+        (let ((cur (car listItem))
+              (next (cdr listItem)))
+          (iter next (append (list cur) res)))))
+  (iter l '()))
+
+(define (takeWhile condition stream)
+  (define (iter stream res)
+    (let ((cur (stream-car stream)))
+      (if (condition cur)
+          (iter (stream-cdr stream) (append (list cur) res))
+          (reverse-list res))))
+  (iter stream '()))
+
+(define (interleave s1 s2)
+  (if (stream-null? s1)
+      s2
+      (cons-stream (stream-car s1)
+                   (interleave s2 (stream-cdr s1)))))
+
+(define (pairs s t)
+  (cons-stream
+   (list (stream-car s) (stream-car t))
+   (interleave ;;以某种方式组合
+    (stream-map (lambda (x) (list (stream-car s) x))
+                (stream-cdr t))
+    (pairs (stream-cdr s) (stream-cdr t)))))
+
+(define int-pairs (pairs integers integers))
+
+
+(define (merge-weighted s1 s2 weight)
+  (cond ((stream-null? s1) s2)
+        ((stream-null? s2) s1)
+        (else
+         (let ((car-s1 (stream-car s1))
+               (car-s2 (stream-car s2)))
+           (if (weight car-s1 car-s2)
+               (cons-stream car-s1 (merge-weighted (stream-cdr s1) s2 weight))
+               (cons-stream car-s2 (merge-weighted s1 (stream-cdr s2) weight)))))))
+
+(define (pairs-weight s1 s2 weight)
+  (cons-stream
+   (list (stream-car s1) (stream-car s2))
+   (merge-weighted
+    (merge-weighted
+     (stream-map (lambda (x) (list x (stream-car s2)))
+                 (stream-cdr s1))
+     (stream-map (lambda (x) (list (stream-car s1) x))
+                 (stream-cdr s2))
+     weight)
+    (pairs-weight (stream-cdr s1) (stream-cdr s2) weight)
+    weight)))
+
+(define (filter-single stream compare)
+  (define (iter s prevList)
+    (let ((cur (stream-car s))
+          (next (stream-cdr s)))
+      (if (compare cur (car prevList))
+          (iter next (cons cur prevList))
+          (if (= (length prevList) 1)
+              (iter next (list cur))
+              (cons-stream
+               prevList
+               (iter next (list cur)))))))
+  (iter (stream-cdr stream) (list (stream-car stream))))
+
+
+(define (integral integrand initial-value dt)
+  (define int
+    (cons-stream initial-value
+                 (add-streams (scale-stream integrand dt)
+                              int)))
+  int)
+
+(define random-init 42)
+
+(define rand
+  (let ((x random-init))
+    (lambda ()
+      (set! x (rand-update x))
+      x)))
+
+(define (rand-update x)
+  (define a 13)
+  (define b 17)
+  (define m 19)
+  (remainder (+ (* a x) b) m))
+
+(define random-numbers
+  (cons-stream random-init
+               (stream-map rand-update
+                           random-numbers)))
+
 
 

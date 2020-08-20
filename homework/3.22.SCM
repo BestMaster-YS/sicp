@@ -1,0 +1,47 @@
+;; build a queue as a procudure with local state
+
+(define (make-queue)
+  (let ((front-ptr '())
+        (rear-ptr '()))
+    (define (empty?) (null? front-ptr))
+    (define (front) (car front-ptr))
+    (define (insert item)
+      (let ((new-pair (cons item '())))
+        (if (empty?)
+            (begin (set! front-ptr new-pair)
+                   (set! rear-ptr new-pair)
+                   front-ptr)
+            (begin (set-cdr! (last-pair rear-ptr) new-pair)
+                   (set! rear-ptr new-pair)
+                   front-ptr))))
+    (define (delete)
+      (if (empty?)
+          (error "DELETE calls with empty queue " front-ptr)
+          (begin (set! front-ptr (cdr front-ptr))
+                 front-ptr)))
+    (define (dispatch op)
+      (cond ((eq? op 'empty-queue?) (empty?))
+            ((eq? op 'front-queue) (front))
+            ((eq? op 'insert-queue!) insert)
+            ((eq? op 'delete-queue!) (delete))))
+    dispatch ))
+
+
+(define (front-queue queue)
+  (queue 'front-queue))
+(define (empty-queue? queue)
+  (queue 'empty-queue?))
+(define (insert-queue! queue item)
+  ((queue 'insert-queue!) item))
+(define (delete-queue! queue)
+  (queue 'delete-queue!))
+
+
+
+(define q1 (make-queue))
+(empty-queue? q1)
+(insert-queue! q1 'a)
+(insert-queue! q1 'b)
+(delete-queue! q1)
+(delete-queue! q1)
+
