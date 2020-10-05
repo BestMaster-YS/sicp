@@ -1,0 +1,22 @@
+(load "4.41.scm")
+
+(define (liar)
+  (let ((bd (amb 1 2 3 4 5))
+        (ase (amb 1 2 3 4 5))
+        (q (amb 1 2 3 4 5))
+        (kd (amb 1 2 3 4 5))
+        (ml (amb 1 2 3 4 5)))
+    (require (or (and (= kd 2) (not (= bd 3)))
+                 (and (not (= kd 2)) (= bd 3))))
+    (require (or (and (= ase 1) (not (= q 2)))
+                 (and (not (= ase 1)) (= q 2))))
+    (require (or (and (= q 3) (not (= ase 5)))
+                 (and (not (= q 3)) (= ase 5))))
+    (require (or (and (= kd 4) (not (= ml 1)))
+                 (and (not (= kd 4)) (= ml 1))))
+    (require (or (and (= ml 4) (not (= bd 1)))
+                 (and (not (= ml 4)) (= bd 1))))
+    (require (distinct? (list bd ase q bd ml)))
+    (list bd ase q bd ml)))
+
+

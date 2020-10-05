@@ -2103,5 +2103,13 @@
                (stream-map rand-update
                            random-numbers)))
 
+;; 非确定性计算
+(define (distinct? items)
+  (cond ((null? items) true)
+        ((null? (cdr items)) true)
+        ((member (car items) (cdr items)) false)
+        (else
+         (distinct? (cdr items)))))
+
 
 
