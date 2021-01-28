@@ -27,22 +27,38 @@
   ((register 'set) value))
 
 (define (make-stack)
-  (let ((s '()))
+  (let ((s '())
+        ;; 增加监视机器执行的变量
+        (number-pushes 0)
+        (max-depth 0)
+        (current-depth 0))
     (define (push x)
-      (set! s (cons x s)))
+      (set! s (cons x s))
+      (set! number-pushes (+ 1 number-pushes))
+      (set! current-depth (+ 1 current-depth))
+      (set! max-depth (max current-depth max-depth)))
     (define (pop)
       (if (null? s)
           (error "Empty stack -- POP")
           (let ((top (car s)))
             (set! s (cdr s))
+            (set! current-depth (- current-depth 1))
             top)))
     (define (initialize)
       (set! s '())
+      (set! number-pushes 0)
+      (set! max-depth 0)
+      (set! current-depth 0)
       'done)
+    (define (print-statistics)
+      (newline)
+      (display (list 'total-pushes  '= number-pushes
+                     'maximum-depth '= max-depth)))
     (define (dispatch message)
       (cond ((eq? message 'push) push)
             ((eq? message 'pop) (pop))
             ((eq? message 'initialize) (initialize))
+            ((eq? message 'print-statistics) (print-statistics))
             (else
              (error "Unknown request -- STACK" message))))
     dispatch))
@@ -70,7 +86,9 @@
         (the-instruction-sequence '()))
     (let ((the-ops
            (list (list 'initialize-stack
-                       (lambda () (stack 'initialize)))))
+                       (lambda () (stack 'initialize)))
+                 (list 'print-stack-statisitics
+                       (lambda () (stack 'print-statistics)))))
           (register-table
            (list (list 'pc pc) (list 'flag flag))))
       (define (allocate-register name)
@@ -356,17 +374,28 @@
 
 
 
+;;开始执行 gcd-machine
 
+(define gcd-machine
+  (make-machine
+   '(a b c)
+    (list (list 'rem remainder) (list '= =))
+    '(test-b
+      (test (op =) (reg b) (const 0))
+      (branch (label gcd-done))
+      (assign t (op rem) (reg a) (reg b))
+      (assign a (reg b))
+      (assign b (reg t))
+      (goto (label test-b))
+      gcd-done))
 
+;; 设置初始值
+(set-register-contents! gcd-machine 'a 206)
 
+(set-register-contents! gcd-machine 'b 40)
 
+(start gcd-machine)
 
-
-
-
-
-
-
-
+(get-register-contents gcd-machine 'a)
 
 
