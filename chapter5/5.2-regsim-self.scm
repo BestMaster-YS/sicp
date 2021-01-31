@@ -1,33 +1,8 @@
-# 5.2 一个寄存器机器模拟器
+(define (tagged-list? exp tag)
+  (if (pair? exp)
+      (eq? (car exp) tag)
+      false))
 
-用 scheme 程序构造一个描述寄存器机器语言机器的模拟器。分为四个过程，第一过程，根据寄存器机器描述，构造模型（本质为数据结构，内容为模拟机器的各组成部分），另外三个过程则是通过操作模型，去模拟相应的机器。
-
-- ``(make-machine <register-names> <operations> <controller>)`` 构造并返回机器的模型，包含给定的寄存器、操作和控制器
-- ``(set-register-contents! <machine-model> <register-name> <value>)`` 在给定机器的寄存器中存值
-- ``(get-register-contents) <machine-mode> <register-name>`` 返回给定机器中寄存器的内容
-- ``(start <machine-mode>)`` 启动模拟机器
-
-```scheme
-;; 例子
-(define gcd-machine
-  (make-machine
-   '(a b t)
-   (list (list 'rem remainder) (list '= =))
-   '(test-b
-     (test (op =) (reg b) (const 0))
-     (branch (label gcd-done))
-     (assign t (op rem) (reg a) (reg b))
-     (assign a (reg b))
-     (assign b (reg t))
-     (goto (label test-b))
-     gcd-done)))
-```
-
-## 5.2.1 机器模型
-
-由 ``make-machine`` 生成的机器模型被表示为一个包含局部变量得到过程，采用消息传递技术。实现过程为通过 ``make-new-machine`` 构造寄存器机器模型的公共部分（本质为一个容器，包含若干寄存器，一个堆栈，一个执行执行用于顺序处理控制器指令）。然后扩充这个基本模型，把定义的寄存器、操作和控制器添加进去。最后需要用一个汇编程序把控制器列表变换为新机器的指令。
-
-```scheme
 (define (make-machine register-names ops controller-text)
   (let ((machine (make-new-machine)))
     (for-each (lambda (register-name)
@@ -37,13 +12,7 @@
     ((machine 'install-instructino-sequence)
      (assemble controller-text machine))
     machine))
-```
 
-#### 寄存器
-
-寄存器表示为一个带有局部状态的过程
-
-```scheme
 (define (make-register name)
   (let ((contents '*unassigned*))
     (define (dispatch message)
@@ -51,7 +20,8 @@
             ((eq? message 'set)
              (lambda (value) (set! contents value)))
             (else
-             (error "Unknown request -- REGISTER" message))))
+             (error "Unknown request -- REGISTER" message))
+            ))
     dispatch))
 
 (define (get-contents register)
@@ -59,47 +29,48 @@
 
 (define (set-contents! register value)
   ((register 'set) value))
-```
 
-#### 堆栈
-
-堆栈与寄存器类似，也是带有局部状态的过程。``make-stack`` 创建一个堆栈，其局部状态存放堆栈数据的表，接受 ``push,pop,initialize`` 操作。
-
-```scheme
 (define (make-stack)
-  (let ((s '()))
+  (let ((s '())
+        ;; 增加监视机器执行的变量
+        (number-pushes 0)
+        (max-depth 0)
+        (current-depth 0))
     (define (push x)
-      (set! s (cons x s)))
+      (set! s (cons x s))
+      (set! number-pushes (+ 1 number-pushes))
+      (set! current-depth (+ 1 current-depth))
+      (set! max-depth (max current-depth max-depth)))
     (define (pop)
       (if (null? s)
           (error "Empty stack -- POP")
           (let ((top (car s)))
             (set! s (cdr s))
+            (set! current-depth (- current-depth 1))
             top)))
     (define (initialize)
       (set! s '())
+      (set! number-pushes 0)
+      (set! max-depth 0)
+      (set! current-depth 0)
       'done)
+    (define (print-statistics)
+      (newline)
+      (display (list 'total-pushes  '= number-pushes
+                     'maximum-depth '= max-depth)))
     (define (dispatch message)
       (cond ((eq? message 'push) push)
             ((eq? message 'pop) (pop))
             ((eq? message 'initialize) (initialize))
+            ((eq? message 'print-statistics) (print-statistics))
             (else
              (error "Unknown request -- STACK" message))))
     dispatch))
 
 (define (pop stack) (stack 'pop))
 (define (push stack value) ((stack 'push) value))
-```
 
-#### 基本机器
-
-过程 ``make-new-machine`` 构造一个对象，其内部状态包括一个堆栈，一个初始为空的指令序列和一个操作的表（操作的表包含一个初始化堆栈的操作），一个寄存器列表（初始化时包含两个寄存器，``flag`` 和 ``PC``（表示程序计数器））。内部过程 ``allocate-register`` 用于向寄存器列表中添加新项，内部过程 ``look-register`` 在寄存器列表中查找相应寄存器。
-
-寄存器 ``flag`` 用于控制被模拟机器的分支动作，``test`` 指令设置 ``flag`` 的内容，表示检测的结果。``branch`` 指令通过检查 ``flag`` 内容确定是否需要转移。
-
-在机器的运行中，``PC`` 寄存器决定指令的执行顺序（由内部过程 ``execute`` 实现）。在模拟模型中，每条机器指令就是一个数据结构，包含一个无参过程（指令执行过程），调用过程就能模拟相应指令的执行。在模拟机器运行时，``PC`` 总是指向指令序列里的下一条需要执行的指令的开始位置。``execute`` 取得相应指令，并调用对应的指令执行过程。当 ``PC`` 指向指令序列的尾部时，程序结束。每个指令都会修改``PC``，``branch 和 goto`` 指令直接修改 ``PC``，其他指令则是增加 ``PC`` 的值，使之指向下一条指令。
-
-```scheme
+;; 基本机器
 
 (define (start machine)
   (machine 'start))
@@ -119,7 +90,9 @@
         (the-instruction-sequence '()))
     (let ((the-ops
            (list (list 'initialize-stack
-                       (lambda () (stack 'initialize)))))
+                       (lambda () (stack 'initialize)))
+                 (list 'print-stack-statisitics
+                       (lambda () (stack 'print-statistics)))))
           (register-table
            (list (list 'pc pc) (list 'flag flag))))
       (define (allocate-register name)
@@ -160,27 +133,18 @@
 (define (get-register machine reg-name)
   ((machine 'get-register) reg-name))
 
-```
+;; assemble program
 
-## 5.2.2 汇编程序
-
-汇编程序将机器的控制器表达式序列翻译为对应的机器指令的表，每条指令带有相应的执行过程。汇编程序与求值器类似，将输入的指令转换为执行过程。也就可以将分析工作和运行时的执行动作分析的技术加快求值器的速度。
-
-在生成指令执行过程之前，汇编程序必须知道所有标号的引用位置。所以汇编程序必须先扫描控制器的正文，从指令序列中分辨各个标号。在扫描正文过程中，汇编程序构造一个指令的表和另一个表，列表里为每个标号关联一个指到指令表里的指针。汇编程序将扩充指令表，为每个指令插入一个执行过程。
-
-```scheme
-;; assemble : controller-text -> machine -> instruction-sequence
 (define (assemble controller-text machine)
   (extract-labels controller-text
                   (lambda (insts labels)
-                    ;; 生成指令执行过程并插入指令表中，返回指令表
+                    ;; 将指令执行过程插入指令表中
                     (update-insts! insts labels machine)
                     insts)))
 
-
 ;; 顺序扫描text中的元素，若是 symbol（标号）就加入 labels 中
 ;; 否则加入 insts 指令表中
-(define (extract-labels test receive)
+(define (extract-labels text receive)
   (if (null? text)
       (receive '() '())
       (extract-labels (cdr text)
@@ -205,7 +169,7 @@
      (lambda (inst)
        (set-instructions-execution-proc!
         inst
-        (make-executition-procedure
+        (make-execution-procedure
          (instruction-text inst) labels machine
          pc flag stack ops)))
      insts)))
@@ -231,13 +195,7 @@
         (cdr val)
         (error "Undefined label -- ASSEMBLE" label-name))))
 
-```
-
-## 5.2.3 为指令生成执行过程
-
-汇编程序调用 ``make-execution-procedure`` 为指令生成执行过程。过程基于指令的类型，把生成适当的执行过程的工作分派出去。
-
-```scheme
+;;  5.2.3 为指令生成执行过程
 
 (define (make-execution-procedure inst labels machine pc flag stack ops)
   (cond ((eq? (car inst) 'assign)
@@ -256,11 +214,6 @@
          (make-perform inst machine labels ops pc))
         (else (error "Unknown instruction type -- ASSEMZBLE" inst))))
 
-```
-
-#### assign 指令
-
-```scheme
 
 (define (make-assign inst machine labels operations pc)
   (let ((target
@@ -286,11 +239,8 @@
 
 (define (advance-pc pc)
   (set-contents! pc (cdr (get-contents pc))))
-```
 
-#### test branch goto 指令
-
-```scheme
+;; test,branch,goto 指令
 
 (define (make-test inst machine labels operations flag pc)
   (let ((condition (test-condition inst)))
@@ -322,7 +272,7 @@
   (cadr branch-instruction))
 
 
-(define (make-goto inst machine labesl pc)
+(define (make-goto inst machine labels pc)
   (let ((dest (goto-dest inst)))
     (cond ((label-exp? dest)
            (let ((insts
@@ -341,11 +291,7 @@
 (define (goto-dest goto-instruction)
   (cadr goto-instruction))
 
-```
-
-#### 其他指令
-
-```scheme
+;; 其他指令
 
 (define (make-save inst machine stack pc)
   (let ((reg (get-register machine
@@ -379,14 +325,8 @@
 
 (define (perform-action inst) (cdr inst))
 
-```
+;; 子表达式的执行过程
 
-#### 子表达式过程
-
-在为一个寄存器赋值（``make-assign``），或者为其他操作提供输入时（``make-operation-exp``），可能需要使用一个 ``reg 、label 或者 const 表达式的值``。
-
-```scheme
-;; reg label const 基本表达式
 (define (make-primitive-exp exp machine labels)
   (cond ((constant-exp? exp)
          (let ((c (constant-exp-value exp)))
@@ -411,9 +351,7 @@
 (define (label-exp? exp) (tagged-list? exp 'label))
 (define (label-exp-label exp) (cadr exp))
 
-;; 在指令里可能需要一个机器操作（由op表达式描述）的应用到参数（由reg和const表达式描述）
-
-(define (make-operation-exp exp machine labels operation)
+(define (make-operation-exp exp machine labels operations)
   (let ((op (lookup-prim (operation-exp-op exp) operations))
         (aprocs
          (map (lambda (e)
@@ -428,7 +366,7 @@
 (define (operation-exp-op operation-exp)
   (cadr (car operation-exp)))
 
-(define (operation-exp-operands operation-exp)
+(define (operations-exp-operands operation-exp)
   (cdr operation-exp))
 
 (define (lookup-prim symbol operations)
@@ -437,78 +375,5 @@
         (cadr val)
         (error "Unknown operation -- ASSEMBLE" symbol))))
 
-```
-
-#### 监视机器执行
-
-
-
-```scheme
-
-(define (make-stack)
-  (let ((s '())
-        ;; 增加监视机器执行的变量
-        (number-pushes 0)
-        (max-depth 0)
-        (current-depth 0))
-    (define (push x)
-      (set! s (cons x s))
-      (set! number-pushes (+ 1 number-pushes))
-      (set! current-depth (+ 1 current-depth))
-      (set! max-depth (max current-depth max-depth)))
-    (define (pop)
-      (if (null? s)
-          (error "Empty stack -- POP")
-          (let ((top (car s)))
-            (set! s (cdr s))
-            (set! current-depth (- current-depth 1))
-            top)))
-    (define (initialize)
-      (set! s '())
-      (set! number-pushes 0)
-      (set! max-depth 0)
-      (set! current-depth 0)
-      'done)
-    (define (print-statistics)
-      (newline)
-      (display (list 'total-pushes  '= number-pushes
-                     'maximum-depth '= max-depth)))
-    (define (dispatch message)
-      (cond ((eq? message 'push) push)
-            ((eq? message 'pop) (pop))
-            ((eq? message 'initialize) (initialize))
-            ((eq? message 'print-statistics) (print-statistics))
-            (else
-             (error "Unknown request -- STACK" message))))
-    dispatch))
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+(define (print-stack-statistics machine)
+  ((machine 'stack) 'print-statistics))

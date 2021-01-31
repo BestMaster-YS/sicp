@@ -41,7 +41,7 @@
 
 ;; 求幂
 (define (fast-expt b n)
-	(fast-expt-iter b n 1)  
+	(fast-expt-iter b n 1)
 )
 ;; 迭代方法计算幂
 (define (fast-expt-iter b n a)
@@ -2111,5 +2111,7 @@
         (else
          (distinct? (cdr items)))))
 
-
-
+(define (tagged-list? exp tag)
+  (if (pair? exp)
+      (eq? (car exp) tag)
+      false))

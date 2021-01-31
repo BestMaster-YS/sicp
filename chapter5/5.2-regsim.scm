@@ -1,11 +1,26 @@
 
+;;;;REGISTER-MACHINE SIMULATOR FROM SECTION 5.2 OF
+;;;; STRUCTURE AND INTERPRETATION OF COMPUTER PROGRAMS
+
+;;;;Matches code in ch5.scm
+
+;;;;This file can be loaded into Scheme as a whole.
+;;;;Then you can define and simulate machines as shown in section 5.2
+
+;;;**NB** there are two versions of make-stack below.
+;;; Choose the monitored or unmonitored one by reordering them to put the
+;;;  one you want last, or by commenting one of them out.
+;;; Also, comment in/out the print-stack-statistics op in make-new-machine
+;;; To find this stack code below, look for comments with **
+
+
 (define (make-machine register-names ops controller-text)
   (let ((machine (make-new-machine)))
     (for-each (lambda (register-name)
                 ((machine 'allocate-register) register-name))
               register-names)
-    ((machine 'install-operations) ops)
-    ((machine 'install-instructino-sequence)
+    ((machine 'install-operations) ops)    
+    ((machine 'install-instruction-sequence)
      (assemble controller-text machine))
     machine))
 
@@ -16,8 +31,7 @@
             ((eq? message 'set)
              (lambda (value) (set! contents value)))
             (else
-             (error "Unknown request -- REGISTER" message))
-            ))
+             (error "Unknown request -- REGISTER" message))))
     dispatch))
 
 (define (get-contents register)
@@ -26,9 +40,37 @@
 (define (set-contents! register value)
   ((register 'set) value))
 
+;;**original (unmonitored) version from section 5.2.1
+(define (make-stack)
+  (let ((s '()))
+    (define (push x)
+      (set! s (cons x s)))
+    (define (pop)
+      (if (null? s)
+          (error "Empty stack -- POP")
+          (let ((top (car s)))
+            (set! s (cdr s))
+            top)))
+    (define (initialize)
+      (set! s '())
+      'done)
+    (define (dispatch message)
+      (cond ((eq? message 'push) push)
+            ((eq? message 'pop) (pop))
+            ((eq? message 'initialize) (initialize))
+            (else (error "Unknown request -- STACK"
+                         message))))
+    dispatch))
+
+(define (pop stack)
+  (stack 'pop))
+
+(define (push stack value)
+  ((stack 'push) value))
+
+;;**monitored version from section 5.2.4
 (define (make-stack)
   (let ((s '())
-        ;; 增加监视机器执行的变量
         (number-pushes 0)
         (max-depth 0)
         (current-depth 0))
@@ -43,7 +85,7 @@
           (let ((top (car s)))
             (set! s (cdr s))
             (set! current-depth (- current-depth 1))
-            top)))
+            top)))    
     (define (initialize)
       (set! s '())
       (set! number-pushes 0)
@@ -58,26 +100,11 @@
       (cond ((eq? message 'push) push)
             ((eq? message 'pop) (pop))
             ((eq? message 'initialize) (initialize))
-            ((eq? message 'print-statistics) (print-statistics))
+            ((eq? message 'print-statistics)
+             (print-statistics))
             (else
              (error "Unknown request -- STACK" message))))
     dispatch))
-
-(define (pop stack) (stack 'pop))
-(define (push stack value) ((stack 'push) value))
-
-;; 基本机器
-
-(define (start machine)
-  (machine 'start))
-
-(define (get-register-contents machine register-name)
-  (get-contents (get-register machine register-name)))
-
-(define (set-register-contents! machine register-name value)
-  (set-contents! (get-register machine register-name) value)
-  'done)
-
 
 (define (make-new-machine)
   (let ((pc (make-register 'pc))
@@ -87,7 +114,9 @@
     (let ((the-ops
            (list (list 'initialize-stack
                        (lambda () (stack 'initialize)))
-                 (list 'print-stack-statisitics
+                 ;;**next for monitored stack (as in section 5.2.4)
+                 ;;  -- comment out if not wanted
+                 (list 'print-stack-statistics
                        (lambda () (stack 'print-statistics)))))
           (register-table
            (list (list 'pc pc) (list 'flag flag))))
@@ -102,7 +131,7 @@
         (let ((val (assoc name register-table)))
           (if val
               (cadr val)
-              (error "Unknown register: " name))))
+              (error "Unknown register:" name))))
       (define (execute)
         (let ((insts (get-contents pc)))
           (if (null? insts)
@@ -114,7 +143,7 @@
         (cond ((eq? message 'start)
                (set-contents! pc the-instruction-sequence)
                (execute))
-              ((eq? message 'install-instructino-sequence)
+              ((eq? message 'install-instruction-sequence)
                (lambda (seq) (set! the-instruction-sequence seq)))
               ((eq? message 'allocate-register) allocate-register)
               ((eq? message 'get-register) lookup-register)
@@ -122,40 +151,44 @@
                (lambda (ops) (set! the-ops (append the-ops ops))))
               ((eq? message 'stack) stack)
               ((eq? message 'operations) the-ops)
-              (else
-               (error "Unknown request -- MACHINE" message))))
+              (else (error "Unknown request -- MACHINE" message))))
       dispatch)))
+
+
+(define (start machine)
+  (machine 'start))
+
+(define (get-register-contents machine register-name)
+  (get-contents (get-register machine register-name)))
+
+(define (set-register-contents! machine register-name value)
+  (set-contents! (get-register machine register-name) value)
+  'done)
 
 (define (get-register machine reg-name)
   ((machine 'get-register) reg-name))
 
-;; assemble program
-
 (define (assemble controller-text machine)
   (extract-labels controller-text
-                  (lambda (insts labels)
-                    ;; 将指令执行过程插入指令表中
-                    (update-insts! insts labels machine)
-                    insts)))
+    (lambda (insts labels)
+      (update-insts! insts labels machine)
+      insts)))
 
-;; 顺序扫描text中的元素，若是 symbol（标号）就加入 labels 中
-;; 否则加入 insts 指令表中
-(define (extract-labels test receive)
+(define (extract-labels text receive)
   (if (null? text)
       (receive '() '())
       (extract-labels (cdr text)
-                      (lambda (insts labels)
-                        (let ((next-inst (car text)))
-                          (if (symbol? next-inst)
-                              (receive insts
-                                  (cons (make-label-entry next-inst
-                                                          insts)
-                                        labels))
-                              (receive (cons (make-instruction next-inst)
-                                             insts)
-                                  labels)))))))
+       (lambda (insts labels)
+         (let ((next-inst (car text)))
+           (if (symbol? next-inst)
+               (receive insts
+                        (cons (make-label-entry next-inst
+                                                insts)
+                              labels))
+               (receive (cons (make-instruction next-inst)
+                              insts)
+                        labels)))))))
 
-;; update-insts!
 (define (update-insts! insts labels machine)
   (let ((pc (get-register machine 'pc))
         (flag (get-register machine 'flag))
@@ -163,7 +196,7 @@
         (ops (machine 'operations)))
     (for-each
      (lambda (inst)
-       (set-instructions-execution-proc!
+       (set-instruction-execution-proc! 
         inst
         (make-execution-procedure
          (instruction-text inst) labels machine
@@ -179,7 +212,7 @@
 (define (instruction-execution-proc inst)
   (cdr inst))
 
-(define (set-instructions-execution-proc! inst proc)
+(define (set-instruction-execution-proc! inst proc)
   (set-cdr! inst proc))
 
 (define (make-label-entry label-name insts)
@@ -191,9 +224,9 @@
         (cdr val)
         (error "Undefined label -- ASSEMBLE" label-name))))
 
-;;  5.2.3 为指令生成执行过程
 
-(define (make-execution-procedure inst labels machine pc flag stack ops)
+(define (make-execution-procedure inst labels machine
+                                  pc flag stack ops)
   (cond ((eq? (car inst) 'assign)
          (make-assign inst machine labels ops pc))
         ((eq? (car inst) 'test)
@@ -208,7 +241,8 @@
          (make-restore inst machine stack pc))
         ((eq? (car inst) 'perform)
          (make-perform inst machine labels ops pc))
-        (else (error "Unknown instruction type -- ASSEMZBLE" inst))))
+        (else (error "Unknown instruction type -- ASSEMBLE"
+                     inst))))
 
 
 (define (make-assign inst machine labels operations pc)
@@ -221,9 +255,7 @@
                 value-exp machine labels operations)
                (make-primitive-exp
                 (car value-exp) machine labels))))
-      ;; 查找寄存器和分析值表达式只需在汇编时执行一次
-      ;; 执行指令时只是赋值和更新PC
-      (lambda ()
+      (lambda ()                ; execution procedure for assign
         (set-contents! target (value-proc))
         (advance-pc pc)))))
 
@@ -235,8 +267,6 @@
 
 (define (advance-pc pc)
   (set-contents! pc (cdr (get-contents pc))))
-
-;; test,branch,goto 指令
 
 (define (make-test inst machine labels operations flag pc)
   (let ((condition (test-condition inst)))
@@ -268,7 +298,7 @@
   (cadr branch-instruction))
 
 
-(define (make-goto inst machine labesl pc)
+(define (make-goto inst machine labels pc)
   (let ((dest (goto-dest inst)))
     (cond ((label-exp? dest)
            (let ((insts
@@ -281,13 +311,11 @@
                                 (register-exp-reg dest))))
              (lambda ()
                (set-contents! pc (get-contents reg)))))
-          (else
-           (error "Bad GOTO instruction -- ASSEMBLE" inst)))))
+          (else (error "Bad GOTO instruction -- ASSEMBLE"
+                       inst)))))
 
 (define (goto-dest goto-instruction)
   (cadr goto-instruction))
-
-;; 其他指令
 
 (define (make-save inst machine stack pc)
   (let ((reg (get-register machine
@@ -300,13 +328,11 @@
   (let ((reg (get-register machine
                            (stack-inst-reg-name inst))))
     (lambda ()
-      (set-contents! reg (pop stack))
+      (set-contents! reg (pop stack))    
       (advance-pc pc))))
-
 
 (define (stack-inst-reg-name stack-instruction)
   (cadr stack-instruction))
-
 
 (define (make-perform inst machine labels operations pc)
   (let ((action (perform-action inst)))
@@ -320,8 +346,6 @@
         (error "Bad PERFORM instruction -- ASSEMBLE" inst))))
 
 (define (perform-action inst) (cdr inst))
-
-;; 子表达式的执行过程
 
 (define (make-primitive-exp exp machine labels)
   (cond ((constant-exp? exp)
@@ -339,55 +363,64 @@
         (else
          (error "Unknown expression type -- ASSEMBLE" exp))))
 
-
 (define (register-exp? exp) (tagged-list? exp 'reg))
+
 (define (register-exp-reg exp) (cadr exp))
+
 (define (constant-exp? exp) (tagged-list? exp 'const))
+
 (define (constant-exp-value exp) (cadr exp))
+
 (define (label-exp? exp) (tagged-list? exp 'label))
+
 (define (label-exp-label exp) (cadr exp))
 
-(define (make-operation-exp exp machine labels operation)
+
+(define (make-operation-exp exp machine labels operations)
   (let ((op (lookup-prim (operation-exp-op exp) operations))
         (aprocs
          (map (lambda (e)
                 (make-primitive-exp e machine labels))
-              (operations-exp-operands exp))))
+              (operation-exp-operands exp))))
     (lambda ()
       (apply op (map (lambda (p) (p)) aprocs)))))
 
 (define (operation-exp? exp)
   (and (pair? exp) (tagged-list? (car exp) 'op)))
-
 (define (operation-exp-op operation-exp)
   (cadr (car operation-exp)))
-
 (define (operation-exp-operands operation-exp)
   (cdr operation-exp))
+
 
 (define (lookup-prim symbol operations)
   (let ((val (assoc symbol operations)))
     (if val
         (cadr val)
         (error "Unknown operation -- ASSEMBLE" symbol))))
+
+;; from 4.1
+(define (tagged-list? exp tag)
+  (if (pair? exp)
+      (eq? (car exp) tag)
+      false))
+
+'(REGISTER SIMULATOR LOADED)
 
 
-
-
-;;开始执行 gcd-machine
 
 (define gcd-machine
   (make-machine
-   '(a b c)
-    (list (list 'rem remainder) (list '= =))
-    '(test-b
-      (test (op =) (reg b) (const 0))
-      (branch (label gcd-done))
-      (assign t (op rem) (reg a) (reg b))
-      (assign a (reg b))
-      (assign b (reg t))
-      (goto (label test-b))
-      gcd-done))
+   '(a b t)
+   (list (list 'rem remainder) (list '= =))
+   '(test-b
+     (test (op =) (reg b) (const 0))
+     (branch (label gcd-done))
+     (assign t (op rem) (reg a) (reg b))
+     (assign a (reg b))
+     (assign b (reg t))
+     (goto (label test-b))
+     gcd-done)))
 
 ;; 设置初始值
 (set-register-contents! gcd-machine 'a 206)
