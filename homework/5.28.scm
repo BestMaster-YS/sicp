@@ -1,5 +1,5 @@
-(load "5.2-regsim-self.scm")
-(load "5.4-scm-machine-lib.scm")
+(load "../chapter5/5.2-regsim-self.scm")
+(load "scm-machine.scm")
 
 ;; 需要的operatoins
 (define eceval-operatons
@@ -183,10 +183,28 @@
      (assign unev (op begin-actions) (reg proc))
      (save continue)
      (goto (label ev-sequence))
+     ;;ev-sequence
+     ;;(assign exp (op first-exp) (reg unev))
+     ;;(test (op last-exp?) (reg unev))
+     ;;(branch (label ev-sequence-last-exp))
+     ;;(save unev)
+     ;;(save env)
+     ;;(assign continue (label ev-sequence-continue))
+     ;;(goto (label eval-dispatch))
+     ;;ev-sequence-continue
+     ;;(restore env)
+     ;;(restore unev)
+     ;;(assign unev (op rest-exps) (reg unev))
+     ;;(goto (label ev-sequence))
+     ;;尾递归的主要内容在于当进行最后一个exp执行时，c不保存任何信息，直接回到 eval-dispatch
+     ;;ev-sequence-last-exp
+     ;;(restore continue)
+     ;;(goto (label eval-dispatch))
+     ;;
      ev-sequence
+     (test (op no-more-exps?) (reg unev))
+     (branch (label ev-sequence-end))
      (assign exp (op first-exp) (reg unev))
-     (test (op last-exp?) (reg unev))
-     (branch (label ev-sequence-last-exp))
      (save unev)
      (save env)
      (assign continue (label ev-sequence-continue))
@@ -196,9 +214,9 @@
      (restore unev)
      (assign unev (op rest-exps) (reg unev))
      (goto (label ev-sequence))
-     ev-sequence-last-exp
+     ev-sequence-end
      (restore continue)
-     (goto (label eval-dispatch))
+     (goto (reg continue))
      ev-if
      (save exp)
      (save env)
@@ -260,7 +278,23 @@
      (goto (label read-eval-print-loop))
      )))
 
-
 (start scm-machine)
+
+;; 5.26
+;;        total     max
+;;   1     70       17
+;;   2     107      20
+;;   3     144      23
+;;        37n+33   3n+14
+
+
+;; 5.27
+;;   1     18       11
+;;   2     52       19
+;;   3     86       27
+;;        34n-16   8n+3
+
+
+
 
 

@@ -20,9 +20,17 @@
 
 (set-register-contents! gcd-machine 'b 40)
 
+(set-breakpoint gcd-machine 'test-b 4)
+
 (start gcd-machine)
 
+(get-register-contents gcd-machine 't)
+
+(proceed-machine gcd-machine)
+
+(get-register-contents gcd-machine 't)
 (get-register-contents gcd-machine 'a)
+
 
 (print-stack-statistics gcd-machine)
 
