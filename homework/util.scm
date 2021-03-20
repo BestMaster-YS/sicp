@@ -252,7 +252,7 @@
                   (denom y))
                (* (denom x)
                   (numer y)))
-            (* (denom y) (denom x)))  
+            (* (denom y) (denom x)))
 )
 
 (define (sub-rat x y)
@@ -260,7 +260,7 @@
                   (denom y))
                (* (denom x)
                   (numer y)))
-            (* (denom y) (denom x)))  
+            (* (denom y) (denom x)))
 )
 
 (define (mul-rat x y)

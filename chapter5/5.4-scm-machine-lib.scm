@@ -148,13 +148,17 @@
   (newline) (display string) (newline))
 
 (define (user-print object)
-  (if (compound-procedure? object)
-      (display (list 'compound-procedure
-                     (procedure-parameters object)
-                     (procedure-body object)
-                     '<procedure-env>))
-      (display object)))
-
+  (cond ((compound-procedure? object)
+         (display (list 'compound-procedure
+                        (procedure-parameters object)
+                        (procedure-body object)
+                        '<procedure-env>
+                        )))
+        ((compiled-procedure? object)
+         (dispaly '<compiled-procedure>
+         ))
+        (else (display object))))
+
 ;;; Simulation of new machine operations needed by
 ;;;  eceval machine (not used by compiled code)
 
@@ -174,5 +178,13 @@
 ;; will do following when ready to run, not when load this file
 ;;(define the-global-environment (setup-environment))
 
-
+;;; Simulation of new machine operations needed for compiled code
+;;;  and eceval/compiler interface (not used by plain eceval machine)
+;;; From section 5.5.2 footnote
+(define (make-compiled-procedure entry env)
+  (list 'compiled-procedure entry env))
+(define (compiled-procedure? proc)
+  (tagged-list? proc 'compiled-procedure))
+(define (compiled-procedure-entry c-proc) (cadr c-proc))
+(define (compiled-procedure-env c-proc) (caddr c-proc))
 

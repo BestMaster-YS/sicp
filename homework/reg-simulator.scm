@@ -244,9 +244,10 @@
                     ;; 将指令执行过程插入指令表中
                     (update-insts! insts labels machine)
                     ;; 将第一个 label 返回
-                    (cons (car (car labels))  insts))
+                    (if (null? labels)
+                        (cons 'none-label insts)
+                        (cons (car (car labels)) insts)))
                   1))
-
 
 
 ;; 顺序扫描text中的元素，若是 symbol（标号）就加入 labels 中

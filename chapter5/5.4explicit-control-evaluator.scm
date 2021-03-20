@@ -37,6 +37,9 @@
    (list 'no-operands? no-operands?)
    (list 'first-operand first-operand)
    (list 'rest-operands rest-operands)
+   (list 'list list)
+   (list 'cons cons)
+   (list 'false? false?)
 
    ;;operations in eceval-support.scm
    (list 'true? true?)
@@ -58,21 +61,37 @@
    (list 'adjoin-arg adjoin-arg)
    (list 'last-operand? last-operand?)
    (list 'no-more-exps? no-more-exps?)	;for non-tail-recursive machine
-   (list 'get-global-environment get-global-environment)))
+   (list 'get-global-environment get-global-environment)
+   (list 'compiled-procedure? compiled-procedure?)
+   (list 'compiled-procedure-entry compiled-procedure-entry)
+   (list 'compiled-procedure-env compiled-procedure-env)
+   (list 'make-compiled-procedure make-compiled-procedure)))
 
 (define the-global-environment (setup-environment))
+
+(define (start-eceval machine)
+  (set! the-global-environment (setup-environment))
+  (set-register-contents! machine 'flag false)
+  (start machine))
 
 (define scm-machine
   (make-machine
    '(exp env val continue proc argl unev)
    eceval-operatons
-   '(read-eval-print-loop
+   '(;;当在外部已经设置好 flag 寄存器的值，则跳转到 external-entry
+     (branch (label external-entry))
+     read-eval-print-loop
      (perform (op initialize-stack))
      (perform (op prompt-for-input) (const ";;;EC-eval input::"))
      (assign exp (op read))
      (assign env (op get-global-environment))
      (assign continue (label print-result))
      (goto (label eval-dispatch))
+     external-entry
+     (perform (op initialize-stack))
+     (assign env (op get-global-environment))
+     (assign continue (label print-result))
+     (goto (reg val))
      print-result
      (perform (op print-stack-statisitics))
      (perform (op announce-output) (const ";;;EC-eval output::"))
@@ -168,6 +187,8 @@
      (branch (label primitive-apply))
      (test (op compound-procedure?) (reg proc))
      (branch (label compound-apply) (reg proc))
+     (test (op compiled-procedure?) (reg proc))
+     (branch (label compiled-apply))
      (goto (label unknown-procedure-type))
      primitive-apply
      (assign val (op apply-primitive-procedure) (reg proc) (reg argl))
@@ -179,6 +200,10 @@
      (assign env (op extend-environment) (reg unev) (reg argl) (reg env))
      (assign unev (op procedure-body) (reg proc))
      (goto (label ev-sequence))
+     compiled-apply
+     (restore continue)
+     (assign val (op compiled-procedure-entry) (reg proc))
+     (goto (reg val))
      ev-begin
      (assign unev (op begin-actions) (reg proc))
      (save continue)
@@ -259,8 +284,5 @@
      (perform (op user-print) (reg val))
      (goto (label read-eval-print-loop))
      )))
-
-
-(start scm-machine)
 
 

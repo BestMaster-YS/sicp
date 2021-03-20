@@ -263,12 +263,17 @@
   (newline) (display string) (newline))
 
 (define (user-print object)
-  (if (compound-procedure? object)
-      (display (list 'compound-procedure
-                     (procedure-parameters object)
-                     (procedure-body object)
-                     '<procedure-env>))
-      (display object)))
+  (cond ((compound-procedure? object)
+         (display (list 'compound-procedure
+                        (procedure-parameters object)
+                        (procedure-body object)
+                        '<procedure-env>
+                        )))
+        ((compiled-procedure? object)
+         (dispaly '<compiled-procedure>
+                  ))
+        (else (display object))))
+
 
 ;;; Simulation of new machine operations needed by
 ;;;  eceval machine (not used by compiled code)
@@ -289,7 +294,23 @@
 ;; will do following when ready to run, not when load this file
 ;;(define the-global-environment (setup-environment))
 
+(define (make-compiled-procedure entry env)
+  (list 'compiled-procedure entry env))
+(define (compiled-procedure? proc)
+  (tagged-list? proc 'compiled-procedure))
+(define (compiled-procedure-entry c-proc) (cadr c-proc))
+(define (compiled-procedure-env c-proc) (caddr c-proc))
 
+;; 添加 let 表达式转换
+(define (let? exp) (tagged-list? exp 'let))
+
+(define (let-body exp) (cddr exp))
+(define (let-inner-exps exp) (cadr exp))
+
+(define (let->combination exp)
+  (cons (make-lambda (map car (let-inner-exps exp))
+                     (let-body exp))
+        (map cadr (let-inner-exps exp))))
 
 
 
